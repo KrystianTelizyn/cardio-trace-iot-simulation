@@ -1,0 +1,22 @@
+{
+    "header": {
+      "device_id": "<device_id>",
+      "message_type": "HEART_RATE_HRV_EPOCH",
+      "collected_at": "<time>",
+      "frame_id": <frame>
+    },
+    "data": {
+      "heart_rate_bpm": <hr>,
+      "sdnn_ms": <sdnn>,
+      "rmssd_ms": <rmssd>,
+      "unit": {
+        "heart_rate": "bpm",
+        "sdnn": "ms",
+        "rmssd": "ms"
+      }
+    },
+    "status": {
+      "signal_quality": 0.98,
+      "battery_level_pct": 76
+    }
+  }

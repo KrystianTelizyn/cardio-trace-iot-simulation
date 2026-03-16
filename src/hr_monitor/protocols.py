@@ -1,0 +1,19 @@
+from typing import Protocol
+
+
+class MqttClient(Protocol):
+    """Minimal MQTT client interface"""
+
+    async def connect(self) -> None: ...
+    async def disconnect(self) -> None: ...
+    async def publish(
+        self, topic: str, payload: str, qos: int = 0, retain: bool = False
+    ) -> None: ...
+
+
+class RecordRepositoryProtocol(Protocol):
+    """Operations set for manipulation of HR records"""
+
+    def list_records(self, tag: str | None = None) -> list[dict]: ...
+    def add_record(self, tag: str, description: str, r_r_intervals: list[int]): ...
+    def get_record_data(self, tag: str) -> list[int]: ...

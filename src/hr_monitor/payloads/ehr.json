@@ -1,0 +1,35 @@
+{
+    "meta": {
+      "device_id": "<device_id>",
+      "received_at": "<time>",
+      "frame_number": <frame>,
+      "protocol_version": "2.1.0"
+    },
+    "observations": [
+      {
+        "code": "8867-4",
+        "display": "Heart rate",
+        "value": <hr>,
+        "unit": "bpm"
+      },
+      {
+        "code": "X-HRV-SDNN",
+        "display": "HRV SDNN",
+        "value": <sdnn>,
+        "unit": "ms"
+      },
+      {
+        "code": "X-HRV-RMSSD",
+        "display": "HRV RMSSD",
+        "value": <rmssd>,
+        "unit": "ms"
+      }
+    ],
+    "device_status": {
+      "firmware_version": "2025.04.11",
+      "sensor_temperature_c": 36.7
+    },
+    "tags": {
+      "source_type": "clinical_wearable"
+    }
+  }
