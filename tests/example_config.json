@@ -1,0 +1,22 @@
+{
+    "devices": [
+        {
+            "device_id": "runner",
+            "payload_format": "<device_id> <frame>",
+            "topic": "example/runner",
+            "hr_frame": 2,
+            "hrv_frame": 9,
+            "record_tag": "patient-xyz"
+        },
+        {
+            "device_id": "walker",
+            "payload_format": "<device_id> <frame>",
+            "topic": "example/walker",
+            "hr_frame": 2,
+            "hrv_frame": 9,
+            "record_tag": "patient-abc"
+        }
+    ],
+    "qos": 0,
+    "retain": false
+}

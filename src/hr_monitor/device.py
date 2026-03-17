@@ -3,6 +3,7 @@ from datetime import timedelta, datetime
 from itertools import cycle, islice
 from asyncio import sleep
 import pyhrv.time_domain as td
+from .formats import PayloadResolver
 
 
 class HRMonitorDevice:
@@ -17,7 +18,7 @@ class HRMonitorDevice:
     ):
         self.device_id = device_id
         self.rr_source = cycle(rr_list)
-        self.payload_format = payload_format
+        self.payload_format = PayloadResolver.resolve(payload_format)
         self.hr_frame = hr_frame
         self.hrv_frame = hrv_frame
         self.hrv_collection: List[int] = []
@@ -35,17 +36,25 @@ class HRMonitorDevice:
 
     def hrv_window(self) -> List[int] | None:
         if self.hrv_window_ready:
-            return self.hrv_collection[: self.hrv_frame - 1]
+            return self.hrv_collection[0 : self.hrv_frame]
         else:
             return None
 
-    def calculate_hrv_stats(self, intervals: List[int]) -> Tuple[int, float, float]:
-        hr = int(td.hr_parameters(nni=intervals)["hr_mean"])
+    def calculate_hrv(self, intervals: List[int]) -> Tuple[float, float]:
+        sdnn = round(td.sdnn(nni=intervals)["sdnn"], 2)
+        rmssd = round(td.rmssd(nni=intervals)["rmssd"], 2)
+        return sdnn, rmssd
+
+    def calculate_hrv_stats(self, intervals: List[int]) -> Tuple[float, float]:
+        hr = self.calculate_hr(intervals)
         sdnn, rmssd = None, None
         if self.hrv_window_ready:
-            sdnn = round(td.sdnn(nni=self.hrv_window())["sdnn"], 2)
-            rmssd = round(td.rmssd(nni=self.hrv_window())["rmssd"], 2)
+            sdnn, rmssd = self.calculate_hrv(self.hrv_window())
         return hr, sdnn, rmssd
+
+    def calculate_hr(self, intervals: List[int]) -> int:
+        hr = int(td.hr_parameters(nni=intervals)["hr_mean"])
+        return hr
 
     @property
     def hrv_window_ready(self) -> bool:
