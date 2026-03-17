@@ -3,6 +3,7 @@ from datetime import timedelta, datetime
 from itertools import cycle, islice
 from asyncio import sleep
 import pyhrv.time_domain as td
+from .formats import PayloadResolver
 
 
 class HRMonitorDevice:
@@ -17,7 +18,7 @@ class HRMonitorDevice:
     ):
         self.device_id = device_id
         self.rr_source = cycle(rr_list)
-        self.payload_format = payload_format
+        self.payload_format = PayloadResolver.resolve(payload_format)
         self.hr_frame = hr_frame
         self.hrv_frame = hrv_frame
         self.hrv_collection: List[int] = []

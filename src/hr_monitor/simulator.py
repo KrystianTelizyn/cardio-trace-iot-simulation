@@ -2,7 +2,7 @@ from __future__ import annotations
 
 import asyncio
 from dataclasses import dataclass
-from enum import Enum, auto
+from enum import Enum
 from typing import Callable, Iterable
 
 from hr_monitor.device import HRMonitorDevice
@@ -10,10 +10,10 @@ from hr_monitor.protocols import MqttClient, RecordRepositoryProtocol
 
 
 class SimulatorState(Enum):
-    NEW = auto()
-    RUNNING = auto()
-    PAUSED = auto()
-    CLOSED = auto()
+    NEW = "NEW"
+    RUNNING = "RUNNING"
+    PAUSED = "PAUSED"
+    CLOSED = "CLOSED"
 
 
 @dataclass(frozen=True)
