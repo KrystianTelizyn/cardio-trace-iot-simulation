@@ -49,7 +49,7 @@ def expected_devices_list():
     return [
         HRDeviceConfig(
             device_id="runner",
-            payload_format="PayloadTemplates.Apple",
+            payload_format="<device_id> <frame>",
             topic="example/runner",
             hr_frame=2,
             hrv_frame=9,
@@ -57,7 +57,7 @@ def expected_devices_list():
         ),
         HRDeviceConfig(
             device_id="walker",
-            payload_format="PayloadTemplates.Garmin",
+            payload_format="<device_id> <frame>",
             topic="example/walker",
             hr_frame=2,
             hrv_frame=9,
