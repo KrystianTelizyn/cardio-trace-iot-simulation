@@ -1,19 +1,7 @@
-from testcontainers.core.container import DockerContainer
-from aiomqtt import Client
 import pytest
 from itertools import chain
 from hr_monitor import HRMonitorMqttSimulator, HRSimulatorConfig
 from hr_monitor.adapters import AioMqttClientAdapter
-
-
-@pytest.fixture(scope="module")
-def mosquitto_broker():
-    with DockerContainer("eclipse-mosquitto:latest").with_exposed_ports(
-        1883
-    ) as container:
-        host = container.get_container_host_ip()
-        port = int(container.get_exposed_port(1883))
-        yield host, port
 
 
 @pytest.fixture
@@ -22,13 +10,6 @@ async def mqtt_client_adapter(mosquitto_broker):
     client = AioMqttClientAdapter(hostname=host, port=port)
     yield client
     await client.disconnect()
-
-
-@pytest.fixture
-async def mqtt_client(mosquitto_broker):
-    host, port = mosquitto_broker
-    async with Client(hostname=host, port=port, timeout=20) as client:
-        yield client
 
 
 @pytest.fixture

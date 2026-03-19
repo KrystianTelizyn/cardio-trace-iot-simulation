@@ -63,6 +63,48 @@ sim = HRMonitorMqttSimulator(repo, cfg, MyMqttClient())
 asyncio.run(sim.start())
 ```
 
+Running the REST API
+--------------------
+
+You can run a small FastAPI service that wraps `HRMonitorMqttSimulator` and exposes HTTP endpoints to start/stop the simulation and inspect devices.
+
+1. Set required environment variables:
+
+```bash
+export SIM_CONFIG_PATH=tests/example_config.json  # or your own config JSON
+export MQTT_HOST=localhost
+export MQTT_PORT=1883
+```
+
+2. Run the API with uvicorn (single worker to keep one simulator instance per process):
+
+```bash
+uvicorn rest.app:app --host 0.0.0.0 --port 8000 --workers 1
+```
+
+Alternatively, run the module directly:
+
+```bash
+python -m rest
+```
+
+3. Example requests:
+
+```bash
+# Health check
+curl http://localhost:8000/health
+
+# Start/stop the simulation
+curl -X POST http://localhost:8000/simulation/start
+curl -X POST http://localhost:8000/simulation/stop
+
+# Get simulator status
+curl http://localhost:8000/simulation/status
+
+# List devices and their MQTT topics
+curl http://localhost:8000/devices
+```
+
 License
 -------
 

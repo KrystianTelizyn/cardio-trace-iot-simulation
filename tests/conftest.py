@@ -4,6 +4,8 @@ from hr_monitor.formats import PayloadTemplates
 from hr_monitor.simulator import HRDeviceConfig
 from hr_monitor.protocols import MqttClient
 from hr_monitor.simulator import HRSimulatorConfig, HRMonitorMqttSimulator
+from testcontainers.core.container import DockerContainer
+from aiomqtt import Client
 
 
 @pytest.fixture
@@ -97,3 +99,20 @@ async def simulator_mqtt_mock(
         yield sim
     finally:
         await sim.close()
+
+
+@pytest.fixture(scope="session")
+def mosquitto_broker():
+    with DockerContainer("eclipse-mosquitto:latest").with_exposed_ports(
+        1883
+    ) as container:
+        host = container.get_container_host_ip()
+        port = int(container.get_exposed_port(1883))
+        yield host, port
+
+
+@pytest.fixture
+async def mqtt_client(mosquitto_broker):
+    host, port = mosquitto_broker
+    async with Client(hostname=host, port=port, timeout=20) as client:
+        yield client

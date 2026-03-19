@@ -2,7 +2,7 @@ from __future__ import annotations
 
 import asyncio
 import json
-from dataclasses import dataclass
+from dataclasses import dataclass, asdict
 from enum import Enum
 from pathlib import Path
 from typing import Any, Iterable, Mapping
@@ -95,6 +95,10 @@ class HRMonitorMqttSimulator:
     @property
     def state(self) -> SimulatorState:
         return self._state
+
+    @property
+    def devices_config(self) -> HRSimulatorConfig:
+        return [asdict(device) for device in self._config.devices]
 
     def _build_devices(self) -> None:
         for dev_cfg in self._config.devices:
