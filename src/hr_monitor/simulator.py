@@ -1,77 +1,35 @@
-from __future__ import annotations
-
 import asyncio
-import json
-from dataclasses import dataclass, asdict
+import logging
+from dataclasses import asdict
 from enum import Enum
-from pathlib import Path
-from typing import Any, Iterable, Mapping
 
 from hr_monitor.device import HRMonitorDevice
 from hr_monitor.protocols import MqttClient, RecordRepositoryProtocol
+from hr_monitor.config import HRSimulatorConfig
+from hr_monitor.exceptions import (
+    MQTTConnectionError,
+    SimulatorError,
+    InvalidConfigurationError,
+)
+
+logger = logging.getLogger(__name__)
 
 
 class SimulatorState(Enum):
-    NEW = "NEW"
+    IDLE = "IDLE"
     RUNNING = "RUNNING"
     PAUSED = "PAUSED"
-    CLOSED = "CLOSED"
-
-
-@dataclass(frozen=True)
-class HRDeviceConfig:
-    """Configuration for a single simulated HR monitor device."""
-
-    device_id: str
-    record_tag: str
-    payload_format: str
-    topic: str
-    hr_frame: int = 5
-    hrv_frame: int = 30
-
-    @classmethod
-    def from_dict(cls, data: Mapping[str, Any]) -> HRDeviceConfig:
-        return cls(
-            device_id=data["device_id"],
-            record_tag=data["record_tag"],
-            payload_format=data["payload_format"],
-            topic=data["topic"],
-            hr_frame=data.get("hr_frame", 5),
-            hrv_frame=data.get("hrv_frame", 30),
-        )
-
-
-@dataclass(frozen=True)
-class HRSimulatorConfig:
-    """Configuration for the simulator."""
-
-    devices: Iterable[HRDeviceConfig]
-    qos: int = 0
-    retain: bool = False
-
-    @classmethod
-    def from_json(cls, json_str: str) -> HRSimulatorConfig:
-        data = json.loads(json_str)
-        devices = [HRDeviceConfig.from_dict(d) for d in data["devices"]]
-        return cls(
-            devices=devices,
-            qos=data.get("qos", 0),
-            retain=data.get("retain", False),
-        )
-
-    @classmethod
-    def from_json_file(cls, path: str | Path) -> HRSimulatorConfig:
-        text = Path(path).read_text()
-        return cls.from_json(text)
+    ERROR = "ERROR"
 
 
 class HRMonitorMqttSimulator:
     """Simulates multiple HRMonitorDevice instances and publishes frames over MQTT.
 
     - Devices are constructed eagerly in __init__ using RR intervals from RecordRepository.
-    - start() begins or resumes publishing (play).
-    - stop() pauses publishing without resetting device state (pause).
-    - close() shuts down all tasks and disconnects MQTT (end of life).
+    - start() begins or resumes publishing (play). If a device task failed (ERROR),
+      start() raises SimulatorInErrorStateError; call stop() then start() again.
+    - pause() clears the run event so device loops block (no MQTT teardown).
+    - stop() performs full cleanup: cancel tasks, disconnect MQTT, clear error.
     """
 
     def __init__(
@@ -83,8 +41,7 @@ class HRMonitorMqttSimulator:
         self._repository = repository
         self._config = config
         self._mqtt = mqtt_client
-
-        self._state: SimulatorState = SimulatorState.NEW
+        self._last_error: Exception | None = None
         self._run_event = asyncio.Event()
         self._tasks: list[asyncio.Task[None]] = []
         self._devices: list[HRMonitorDevice] = []
@@ -94,7 +51,17 @@ class HRMonitorMqttSimulator:
 
     @property
     def state(self) -> SimulatorState:
-        return self._state
+        if self._last_error is not None:
+            return SimulatorState.ERROR
+        if not self._tasks:
+            return SimulatorState.IDLE
+        if self._run_event.is_set():
+            return SimulatorState.RUNNING
+        return SimulatorState.PAUSED
+
+    @property
+    def last_error(self) -> Exception | None:
+        return self._last_error
 
     @property
     def devices_config(self) -> HRSimulatorConfig:
@@ -102,67 +69,129 @@ class HRMonitorMqttSimulator:
 
     def _build_devices(self) -> None:
         for dev_cfg in self._config.devices:
-            rr_intervals = self._repository.get_record_data(dev_cfg.record_tag)
-            device = HRMonitorDevice(
-                device_id=dev_cfg.device_id,
-                rr_list=rr_intervals,
-                payload_format=dev_cfg.payload_format,
-                hr_frame=dev_cfg.hr_frame,
-                hrv_frame=dev_cfg.hrv_frame,
-            )
+            try:
+                rr_intervals = self._repository.get_record_data(dev_cfg.record_tag)
+            except Exception as e:
+                raise InvalidConfigurationError(
+                    f"Failed to get record data for device {dev_cfg.device_id}"
+                ) from e
+            try:
+                device = HRMonitorDevice(
+                    device_id=dev_cfg.device_id,
+                    rr_list=rr_intervals,
+                    payload_format=dev_cfg.payload_format,
+                    hr_frame=dev_cfg.hr_frame,
+                    hrv_frame=dev_cfg.hrv_frame,
+                )
+            except Exception as e:
+                raise InvalidConfigurationError(
+                    f"Failed to initialize device {dev_cfg.device_id}"
+                ) from e
             self._devices.append(device)
             self._device_topics[dev_cfg.device_id] = dev_cfg.topic
 
     async def start(self) -> None:
         """Start or resume simulation (play)."""
-        if self._state is SimulatorState.CLOSED:
-            raise RuntimeError("Simulator is closed and cannot be started.")
+        if self.state is SimulatorState.ERROR:
+            raise SimulatorError(self._last_error) from self._last_error
 
-        if self._state is SimulatorState.NEW:
-            await self._mqtt.connect()
+        if not self._tasks:
+            try:
+                await self._mqtt.connect()
+            except asyncio.CancelledError:
+                raise
+            except Exception as e:
+                raise MQTTConnectionError(e) from e
             self._create_tasks()
 
         self._run_event.set()
-        self._state = SimulatorState.RUNNING
+
+    async def pause(self) -> None:
+        """Pause simulation without resetting device state."""
+        if self.state is SimulatorState.ERROR:
+            raise SimulatorError(self._last_error) from self._last_error
+        if self.state is SimulatorState.IDLE:
+            return
+        self._run_event.clear()
 
     async def stop(self) -> None:
-        """Pause simulation without resetting device state."""
-        if self._state is SimulatorState.CLOSED:
-            return
-        self._run_event.clear()
-        if self._state is SimulatorState.RUNNING:
-            self._state = SimulatorState.PAUSED
-
-    async def close(self) -> None:
-        """Completely stop simulation and disconnect MQTT."""
-        if self._state is SimulatorState.CLOSED:
+        """Full teardown: cancel device tasks, disconnect MQTT, clear recorded error."""
+        if self.state is SimulatorState.IDLE:
             return
 
-        self._run_event.clear()
-        for task in self._tasks:
-            task.cancel()
-        if self._tasks:
-            await asyncio.gather(*self._tasks, return_exceptions=True)
-        self._tasks.clear()
-
-        await self._mqtt.disconnect()
-        self._state = SimulatorState.CLOSED
+        await self._cancel_tasks()
+        try:
+            await self._mqtt.disconnect()
+        except Exception:
+            logger.exception(
+                "Failed to disconnect MQTT client while closing simulator."
+            )
+        self._last_error = None
 
     def _create_tasks(self) -> None:
         loop = asyncio.get_running_loop()
         for device in self._devices:
             topic = self._device_topics[device.device_id]
             task = loop.create_task(self._run_device_loop(device, topic))
+            task.add_done_callback(self._on_device_task_done)
             self._tasks.append(task)
 
     async def _run_device_loop(self, device: HRMonitorDevice, topic: str) -> None:
         """Per-device loop: wait for play, then generate and publish frames."""
+        logger.debug(
+            "Starting device loop: device_id=%s topic=%s", device.device_id, topic
+        )
         while True:
-            await self._run_event.wait()
-            frame = await device.obtain_next_measurement_frame()
-            await self._mqtt.publish(
-                topic,
-                frame,
-                qos=self._config.qos,
-                retain=self._config.retain,
-            )
+            try:
+                await self._run_event.wait()
+                frame = await device.obtain_next_measurement_frame()
+                await self._mqtt.publish(
+                    topic,
+                    frame,
+                    qos=self._config.qos,
+                    retain=self._config.retain,
+                )
+            except asyncio.CancelledError:
+                logger.debug(
+                    "Device loop cancelled: device_id=%s topic=%s",
+                    device.device_id,
+                    topic,
+                )
+                raise
+            except Exception:
+                logger.exception(
+                    "Device loop failed: device_id=%s topic=%s",
+                    device.device_id,
+                    topic,
+                )
+                raise
+
+    async def _cancel_tasks(self) -> None:
+        self._run_event.clear()
+        for task in self._tasks:
+            task.cancel()
+        results = await asyncio.gather(*self._tasks, return_exceptions=True)
+        for result in results:
+            if isinstance(result, Exception) and not isinstance(
+                result, asyncio.CancelledError
+            ):
+                logger.exception(
+                    "Background device task ended with exception during cancellation.",
+                    exc_info=result,
+                )
+        self._tasks.clear()
+
+    def post_device_task_error(self, exc: Exception) -> None:
+        if self.state in {SimulatorState.ERROR, SimulatorState.IDLE}:
+            return
+        logger.exception("Device task failed with exception.", exc_info=exc)
+        self._last_error = exc
+        # pause the simulator
+        self._run_event.clear()
+
+    def _on_device_task_done(self, task: asyncio.Task[None]) -> None:
+        if task.cancelled():
+            return
+        exc = task.exception()
+        if exc is not None:
+            self.post_device_task_error(exc)

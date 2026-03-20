@@ -2,6 +2,9 @@ import pytest
 from fastapi.testclient import TestClient
 from dataclasses import asdict
 import os
+from asyncio import sleep
+from rest.app import app
+from hr_monitor.exceptions import SimulatorError
 
 
 @pytest.fixture
@@ -18,8 +21,6 @@ def api_client(mocker, mock_repository, mosquitto_broker, example_config_file):
             "MQTT_PORT": str(port),
         },
     )
-
-    from rest.app import app
 
     with TestClient(app) as client:
         yield client
@@ -38,6 +39,14 @@ def test_devices_endpoint(api_client, expected_devices_list):
     assert body["devices"] == [asdict(device) for device in expected_devices_list]
 
 
+def test_simulation_status_endpoint(api_client):
+    response = api_client.get("/simulation/status")
+    assert response.status_code == 200
+    body = response.json()
+    assert body["state"] == "IDLE"
+    assert "config_path" in body
+
+
 def test_start_stop_cycle(api_client):
     start_resp = api_client.post("/simulation/start")
     assert start_resp.status_code == 200
@@ -51,7 +60,7 @@ def test_start_stop_cycle(api_client):
 
     stop_resp = api_client.post("/simulation/stop")
     assert stop_resp.status_code == 200
-    assert stop_resp.json()["state"] == "PAUSED"
+    assert stop_resp.json()["state"] == "IDLE"
 
 
 @pytest.mark.timeout(20)
@@ -83,3 +92,43 @@ async def test_rest_mqtt_subscription_and_payloads(api_client, mqtt_client):
 
     for i, payload in enumerate(messages["example/walker"]):
         assert payload == f"walker {i + 1}"
+
+
+@pytest.mark.asyncio
+async def test_simulation_pause_endpoint(api_client):
+    start_resp = api_client.post("/simulation/start")
+    assert start_resp.status_code == 200
+    assert start_resp.json()["state"] == "RUNNING"
+    await sleep(1)
+    response = api_client.post("/simulation/pause")
+    assert response.status_code == 200
+    assert response.json()["state"] == "PAUSED"
+    resume_resp = api_client.post("/simulation/start")
+    assert resume_resp.status_code == 200
+    assert resume_resp.json()["state"] == "RUNNING"
+    await sleep(1)
+    response = api_client.post("/simulation/pause")
+    assert response.status_code == 200
+    assert response.json()["state"] == "PAUSED"
+
+
+@pytest.mark.asyncio
+async def test_returns_409_when_internal_error(api_client, mocker):
+    mocker.patch.object(
+        app.state.simulator,
+        "start",
+        side_effect=SimulatorError(ValueError("Test error")),
+    )
+    response = api_client.post("/simulation/start")
+    assert response.status_code == 409
+    assert "ValueError('Test error')" in response.json()["detail"]
+    assert response.json()["last_error"] == "ValueError('Test error')"
+    mocker.patch.object(
+        app.state.simulator,
+        "pause",
+        side_effect=SimulatorError(ValueError("Test error")),
+    )
+    response = api_client.post("/simulation/pause")
+    assert response.status_code == 409
+    assert "ValueError('Test error')" in response.json()["detail"]
+    assert response.json()["last_error"] == "ValueError('Test error')"

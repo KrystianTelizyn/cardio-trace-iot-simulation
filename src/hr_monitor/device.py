@@ -3,7 +3,9 @@ from datetime import timedelta, datetime
 from itertools import cycle, islice
 from asyncio import sleep
 import pyhrv.time_domain as td
+
 from .formats import PayloadResolver
+from .exceptions import DeviceInitializationError, HRVCalculationError
 
 
 class HRMonitorDevice:
@@ -16,6 +18,13 @@ class HRMonitorDevice:
         hrv_frame: int = 30,
         start_time: datetime = None,
     ):
+        if device_id is None or device_id == "":
+            raise DeviceInitializationError("Device ID is required")
+        if payload_format is None or payload_format == "":
+            raise DeviceInitializationError("Payload format is required")
+        if not rr_list or len(rr_list) == 0:
+            raise DeviceInitializationError("RR list is required")
+
         self.device_id = device_id
         self.rr_source = cycle(rr_list)
         self.payload_format = PayloadResolver.resolve(payload_format)
@@ -46,11 +55,14 @@ class HRMonitorDevice:
         return sdnn, rmssd
 
     def calculate_hrv_stats(self, intervals: List[int]) -> Tuple[float, float]:
-        hr = self.calculate_hr(intervals)
-        sdnn, rmssd = None, None
-        if self.hrv_window_ready:
-            sdnn, rmssd = self.calculate_hrv(self.hrv_window())
-        return hr, sdnn, rmssd
+        hr, sdnn, rmssd = None, None, None
+        try:
+            hr = self.calculate_hr(intervals)
+            if self.hrv_window_ready:
+                sdnn, rmssd = self.calculate_hrv(self.hrv_window())
+            return hr, sdnn, rmssd
+        except Exception as e:
+            raise HRVCalculationError(f"Failed to calculate HRV stats: {e}") from e
 
     def calculate_hr(self, intervals: List[int]) -> int:
         hr = int(td.hr_parameters(nni=intervals)["hr_mean"])

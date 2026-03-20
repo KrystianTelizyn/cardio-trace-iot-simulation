@@ -1,6 +1,7 @@
 Cardio Trace IoT Simulation
 ===========================
 
+**This is a part of [Cardio Trace Platform](https://github.com/KrystianTelizyn/cardio-trace-platform)**
 Cardio Trace IoT Simulation is a Python toolkit for simulating heart‑rate monitor devices that publish data over MQTT using real RR‑interval recordings.
 
 What it does
@@ -47,21 +48,23 @@ rr = repo.get_record_data("physionet-rr-000")
 
 ```python
 from hr_monitor import HRDeviceConfig, HRSimulatorConfig, HRMonitorMqttSimulator, RecordRepository
+from hr_monitor.adapters.mqtt_asyncio_client import AsyncioPahoMqttAdapter
 import asyncio
 
-
-class MyMqttClient:
-    async def connect(self): ...
-    async def publish(self, topic, payload, qos=0, retain=False): ...
-    async def disconnect(self): ...
-
-
 repo = RecordRepository()
-devices = [HRDeviceConfig(device_id="dev-1", record_tag="physionet-rr-000", payload_format="json")]
-cfg = HRSimulatorConfig(devices=devices, topic_builder=lambda d: f"iot/hr/{d}")
-sim = HRMonitorMqttSimulator(repo, cfg, MyMqttClient())
+devices = [
+    HRDeviceConfig(
+        device_id="dev-1",
+        record_tag="physionet-rr-000",
+        payload_format="json"
+    )
+]
+cfg = HRSimulatorConfig(devices=devices)
+mqtt_client = AsyncioPahoMqttAdapter(host="localhost", port=1883)
+sim = HRMonitorMqttSimulator(repo, cfg, mqtt_client)
 asyncio.run(sim.start())
 ```
+
 
 Running the REST API
 --------------------

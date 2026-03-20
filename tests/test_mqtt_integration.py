@@ -24,7 +24,7 @@ async def simulator_with_mqtt(
     try:
         yield simulator
     finally:
-        await simulator.close()
+        await simulator.stop()
 
 
 @pytest.mark.timeout(10)
@@ -38,7 +38,7 @@ async def test_mqtt_integration_runner(simulator_with_mqtt, mqtt_client):
         messages.append(message)
         if len(messages) >= 5:
             break
-    await simulator_with_mqtt.stop()
+    await simulator_with_mqtt.pause()
     for i, message in enumerate(messages):
         assert message.payload.decode("utf-8") == f"runner {i + 1}"
 
@@ -54,7 +54,7 @@ async def test_mqtt_integration_walker(simulator_with_mqtt, mqtt_client):
         messages.append(message)
         if len(messages) >= 5:
             break
-    await simulator_with_mqtt.stop()
+    await simulator_with_mqtt.pause()
     for i, message in enumerate(messages):
         assert message.payload.decode("utf-8") == f"walker {i + 1}"
 
@@ -71,7 +71,7 @@ async def test_mqtt_integration_walker_runner(simulator_with_mqtt, mqtt_client):
         # check if we have 10 messages
         if len(list(chain(*messages.values()))) >= 10:
             break
-    await simulator_with_mqtt.stop()
+    await simulator_with_mqtt.pause()
     for i, message in enumerate(messages["example/walker"]):
         assert message.payload.decode("utf-8") == f"walker {i + 1}"
     for i, message in enumerate(messages["example/runner"]):
