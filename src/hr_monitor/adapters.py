@@ -6,6 +6,27 @@ from aiomqtt import Client as AioMqttClient
 
 
 class AioMqttClientAdapter:
+    """Adapter to provide a minimal MQTT client interface using aiomqtt's Client.
+
+    This class facilitates connecting to an MQTT broker, disconnecting, and publishing messages,
+    acting as an adapter to the underlying aiomqtt.Client for compatibility with project protocols.
+
+    Args:
+        hostname (str): MQTT broker hostname.
+        port (int, optional): MQTT broker port (default: 1883).
+
+    Methods:
+        connect(): Asynchronously establish connection to the MQTT broker.
+        disconnect(): Asynchronously disconnect from the broker and cleanup.
+        publish(topic, payload, qos, retain): Asynchronously publish messages to a topic.
+
+    Usage:
+        adapter = AioMqttClientAdapter("localhost")
+        await adapter.connect()
+        await adapter.publish("topic", "message")
+        await adapter.disconnect()
+    """
+
     def __init__(self, hostname: str, port: int = 1883):
         self.hostname = hostname
         self.port = port

@@ -23,13 +23,14 @@ class SimulatorState(Enum):
 
 
 class HRMonitorMqttSimulator:
-    """Simulates multiple HRMonitorDevice instances and publishes frames over MQTT.
+    """
+    HRMonitorMqttSimulator manages multiple simulated HRMonitorDevice instances and publishes their data over MQTT.
 
-    - Devices are constructed eagerly in __init__ using RR intervals from RecordRepository.
-    - start() begins or resumes publishing (play). If a device task failed (ERROR),
-      start() raises SimulatorInErrorStateError; call stop() then start() again.
-    - pause() clears the run event so device loops block (no MQTT teardown).
-    - stop() performs full cleanup: cancel tasks, disconnect MQTT, clear error.
+    Workflow:
+    - Devices are instantiated during __init__, each loaded with RR interval data from the provided RecordRepository.
+    - start(): Starts or resumes device publishing (playback). If an error has occurred (state=ERROR), start() will raise unless stop() is called first to reset.
+    - pause(): Pauses publishing by clearing the run event; background tasks await resumption but MQTT remains connected.
+    - stop(): Fully shuts down the simulation—cancels all publishing tasks, disconnects from MQTT, and clears any error state.
     """
 
     def __init__(

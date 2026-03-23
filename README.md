@@ -48,7 +48,8 @@ rr = repo.get_record_data("physionet-rr-000")
 
 ```python
 from hr_monitor import HRDeviceConfig, HRSimulatorConfig, HRMonitorMqttSimulator, RecordRepository
-from hr_monitor.adapters.mqtt_asyncio_client import AsyncioPahoMqttAdapter
+from hr_monitor.adapters import AioMqttClientAdapter
+from hr_moniotr.formats import PayloadTemplates
 import asyncio
 
 repo = RecordRepository()
@@ -56,11 +57,12 @@ devices = [
     HRDeviceConfig(
         device_id="dev-1",
         record_tag="physionet-rr-000",
-        payload_format="json"
+        payload_format=PayloadTemplates.Apple
+        topic="/bus/dev-1"
     )
 ]
 cfg = HRSimulatorConfig(devices=devices)
-mqtt_client = AsyncioPahoMqttAdapter(host="localhost", port=1883)
+mqtt_client = AioMqttClientAdapter(host="localhost", port=1883)
 sim = HRMonitorMqttSimulator(repo, cfg, mqtt_client)
 asyncio.run(sim.start())
 ```

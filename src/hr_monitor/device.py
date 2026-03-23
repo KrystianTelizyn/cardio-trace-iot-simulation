@@ -9,6 +9,30 @@ from .exceptions import DeviceInitializationError, HRVCalculationError
 
 
 class HRMonitorDevice:
+    """
+    Emulates a heart rate monitoring device capable of generating RR intervals,
+    assembling HR and HRV measurement frames, and formatting telemetry payloads.
+
+    Args:
+        device_id (str): Unique identifier for the device.
+        rr_list (List[int]): Sequence of RR intervals (ms) to cycle through.
+        payload_format (str): Template or format string for telemetry output.
+        hr_frame (int, optional): Number of RR samples per HR calculation. Defaults to 5.
+        hrv_frame (int, optional): Number of RR samples in sliding window for HRV stats. Defaults to 30.
+        start_time (datetime, optional): Time to set as first sample.
+
+    Raises:
+        DeviceInitializationError: If required parameters are missing or invalid.
+
+    Methods:
+        _sample_rr(samples): Collects the next N RR intervals from source.
+        _update_hrv_window(intervals): Appends RR intervals to sliding window, trimming to `hrv_frame`.
+        hrv_window(): Returns the current HRV window if sufficient samples, else None.
+        calculate_hrv(intervals): Calculates SDNN and RMSSD from intervals.
+        calculate_hrv_stats(intervals): Calculates HR, SDNN, and RMSSD, handling error cases.
+        obtain_next_measurement_frame(): Async method to gather next frame as per payload format.
+    """
+
     def __init__(
         self,
         device_id: str,
