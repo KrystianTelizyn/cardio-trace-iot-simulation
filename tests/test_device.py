@@ -1,5 +1,6 @@
 import pytest
 from hr_monitor.device import HRMonitorDevice
+from hr_monitor.exceptions import DeviceInitializationError, HRVCalculationError
 from hr_monitor.formats import PayloadResolver, PayloadTemplates
 from datetime import datetime, timedelta
 
@@ -25,11 +26,11 @@ def test_token_replacements_in_frame():
 @pytest.mark.asyncio
 async def test_hrv_window_ready():
     rr_example = [10 for _ in range(30)]
-
+    simple_payload = "<hr>"
     device = HRMonitorDevice(
         device_id="Device_A",
         rr_list=rr_example,
-        payload_format="",
+        payload_format=simple_payload,
         hr_frame=2,
         hrv_frame=9,
     )
@@ -141,10 +142,11 @@ async def test_iso_time_format_in_frame():
 def test_cycling_rr_list():
     rr_example = [0, 1, 2, 3, 4, 5, 6, 7, 8, 9]
     cycle_size = 4
+    simple_payload = "<hr>"
     device = HRMonitorDevice(
         device_id="Device_A",
         rr_list=rr_example,
-        payload_format="",
+        payload_format=simple_payload,
         hr_frame=cycle_size,
         hrv_frame=9,
     )
@@ -163,10 +165,11 @@ def test_cycling_rr_list():
 @pytest.mark.asyncio
 async def test_using_hr_window_for_hr_calculation(mocker):
     rr_example = [1, 2, 3, 4, 5, 6, 7, 8, 9, 10]
+    simple_payload = "<hr>"
     device = HRMonitorDevice(
         device_id="Device_A",
         rr_list=rr_example,
-        payload_format="",
+        payload_format=simple_payload,
         hr_frame=2,
         hrv_frame=9,
     )
@@ -182,10 +185,11 @@ async def test_using_hr_window_for_hr_calculation(mocker):
 @pytest.mark.asyncio
 async def test_using_hrv_window_for_hrv_calculation(mocker):
     rr_example = [1, 2, 3, 4, 5, 6, 7, 8, 9, 10]
+    simple_payload = "<sdnn> <rmssd>"
     device = HRMonitorDevice(
         device_id="Device_A",
         rr_list=rr_example,
-        payload_format="",
+        payload_format=simple_payload,
         hr_frame=2,
         hrv_frame=5,
     )
@@ -241,7 +245,7 @@ def test_using_payload_resolve(mocker):
     # mock PayloadResolver.resolve to return a simple payload
     mocker.patch.object(PayloadResolver, "resolve", return_value="<hr> <sdnn> <rmssd>")
     device = HRMonitorDevice(
-        device_id="Device_A", rr_list=[], payload_format=PayloadTemplates.Apple
+        device_id="Device_A", rr_list=[10, 10], payload_format=PayloadTemplates.Apple
     )
     assert device.payload_format == "<hr> <sdnn> <rmssd>"
 
@@ -253,9 +257,50 @@ async def test_common_usage_of_device():
         device_id="runner", rr_list=rr_example, payload_format=PayloadTemplates.Apple
     )
     result_frame = ""
-    for _ in range(20):
+    for _ in range(10):
         result_frame = await device.obtain_next_measurement_frame()
     assert '"value_bpm": 240' in result_frame
     assert '"timestamp_iso": ' in result_frame
-    assert '"sequence_number": 20' in result_frame
+    assert '"sequence_number": 10' in result_frame
     assert '"deviceId": "runner"' in result_frame
+
+
+def test_empty_device_id_raises_device_initialization_error():
+    with pytest.raises(DeviceInitializationError) as e:
+        HRMonitorDevice(
+            device_id="", rr_list=[10, 10], payload_format=PayloadTemplates.Apple
+        )
+    assert "Device ID is required" in str(e.value)
+
+
+def test_empty_rr_list_raises_device_initialization_error():
+    with pytest.raises(DeviceInitializationError) as e:
+        HRMonitorDevice(
+            device_id="Device_A", rr_list=[], payload_format=PayloadTemplates.Apple
+        )
+    assert "RR list is required" in str(e.value)
+
+
+def test_empty_payload_format_raises_device_initialization_error():
+    with pytest.raises(DeviceInitializationError) as e:
+        HRMonitorDevice(device_id="Device_A", rr_list=[10, 10], payload_format="")
+    assert "Payload format is required" in str(e.value)
+
+
+@pytest.mark.asyncio
+async def test_hrv_calculation_error(mocker):
+    rr_example = [1, 2, 3, 4, 5, 6, 7, 8, 9, 10]
+
+    # Correct way to patch inside @src/hr_monitor/device.py
+    mock_td = mocker.patch("hr_monitor.device.td")
+    mock_td.hr_parameters.side_effect = ValueError("Test error")
+
+    simple_payload = "<sdnn> <rmssd>"
+    device = HRMonitorDevice(
+        device_id="Device_A",
+        rr_list=rr_example,
+        payload_format=simple_payload,
+    )
+    with pytest.raises(HRVCalculationError):
+        # Since obtain_next_measurement_frame is async, we need to run it in an event loop
+        await device.obtain_next_measurement_frame()

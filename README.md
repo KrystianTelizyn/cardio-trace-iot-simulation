@@ -1,6 +1,7 @@
 Cardio Trace IoT Simulation
 ===========================
 
+**This is a part of [Cardio Trace Platform](https://github.com/KrystianTelizyn/cardio-trace-platform)**
 Cardio Trace IoT Simulation is a Python toolkit for simulating heart‑rate monitor devices that publish data over MQTT using real RR‑interval recordings.
 
 What it does
@@ -47,20 +48,66 @@ rr = repo.get_record_data("physionet-rr-000")
 
 ```python
 from hr_monitor import HRDeviceConfig, HRSimulatorConfig, HRMonitorMqttSimulator, RecordRepository
+from hr_monitor.adapters import AioMqttClientAdapter
+from hr_moniotr.formats import PayloadTemplates
 import asyncio
 
-
-class MyMqttClient:
-    async def connect(self): ...
-    async def publish(self, topic, payload, qos=0, retain=False): ...
-    async def disconnect(self): ...
-
-
 repo = RecordRepository()
-devices = [HRDeviceConfig(device_id="dev-1", record_tag="physionet-rr-000", payload_format="json")]
-cfg = HRSimulatorConfig(devices=devices, topic_builder=lambda d: f"iot/hr/{d}")
-sim = HRMonitorMqttSimulator(repo, cfg, MyMqttClient())
+devices = [
+    HRDeviceConfig(
+        device_id="dev-1",
+        record_tag="physionet-rr-000",
+        payload_format=PayloadTemplates.Apple
+        topic="/bus/dev-1"
+    )
+]
+cfg = HRSimulatorConfig(devices=devices)
+mqtt_client = AioMqttClientAdapter(host="localhost", port=1883)
+sim = HRMonitorMqttSimulator(repo, cfg, mqtt_client)
 asyncio.run(sim.start())
+```
+
+
+Running the REST API
+--------------------
+
+You can run a small FastAPI service that wraps `HRMonitorMqttSimulator` and exposes HTTP endpoints to start/stop the simulation and inspect devices.
+
+1. Set required environment variables:
+
+```bash
+export SIM_CONFIG_PATH=tests/example_config.json  # or your own config JSON
+export MQTT_HOST=localhost
+export MQTT_PORT=1883
+```
+
+2. Run the API with uvicorn (single worker to keep one simulator instance per process):
+
+```bash
+uvicorn rest.app:app --host 0.0.0.0 --port 8000 --workers 1
+```
+
+Alternatively, run the module directly:
+
+```bash
+python -m rest
+```
+
+3. Example requests:
+
+```bash
+# Health check
+curl http://localhost:8000/health
+
+# Start/stop the simulation
+curl -X POST http://localhost:8000/simulation/start
+curl -X POST http://localhost:8000/simulation/stop
+
+# Get simulator status
+curl http://localhost:8000/simulation/status
+
+# List devices and their MQTT topics
+curl http://localhost:8000/devices
 ```
 
 License

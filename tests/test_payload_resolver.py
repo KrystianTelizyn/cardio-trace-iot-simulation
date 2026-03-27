@@ -2,6 +2,7 @@ import pytest
 from hr_monitor.formats import PayloadResolver
 from hr_monitor.formats import PayloadTemplates
 from hr_monitor.formats import _PAYLOADS_DIR
+from hr_monitor.exceptions import InvalidPayloadTypeError
 
 
 def test_resolves_payload_from_payload_templates_enum(simulated_cached_payloads):
@@ -23,7 +24,7 @@ def test_resolves_payload_from_string_real_cached_payloads():
 
 
 def test_raises_value_error_for_unknown_payload_type(simulated_cached_payloads):
-    with pytest.raises(ValueError):
+    with pytest.raises(InvalidPayloadTypeError):
         PayloadResolver.resolve(123)
 
 

@@ -1,5 +1,6 @@
 from enum import Enum
 from pathlib import Path
+from .exceptions import InvalidPayloadTypeError
 
 _PAYLOADS_DIR = Path(__file__).parent / "payloads"
 
@@ -29,5 +30,5 @@ class PayloadResolver:
         ):
             return _cached_payloads[payload_candidate]
         if not isinstance(payload_candidate, str):
-            raise ValueError(f"Unsupported payload format: {type(payload_candidate)}")
+            raise InvalidPayloadTypeError(payload_candidate)
         return payload_candidate

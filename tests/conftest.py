@@ -1,9 +1,12 @@
 import pytest
 import json
 from hr_monitor.formats import PayloadTemplates
-from hr_monitor.simulator import HRDeviceConfig
 from hr_monitor.protocols import MqttClient
-from hr_monitor.simulator import HRSimulatorConfig, HRMonitorMqttSimulator
+from hr_monitor.simulator import HRMonitorMqttSimulator
+from hr_monitor.config import HRSimulatorConfig, HRDeviceConfig
+from testcontainers.core.container import DockerContainer
+from aiomqtt import Client
+from asyncio import sleep
 
 
 @pytest.fixture
@@ -96,4 +99,35 @@ async def simulator_mqtt_mock(
     try:
         yield sim
     finally:
-        await sim.close()
+        await sim.stop()
+
+
+@pytest.fixture(scope="session")
+async def mosquitto_broker():
+    with DockerContainer("eclipse-mosquitto:latest").with_exposed_ports(
+        1883
+    ) as container:
+        host = container.get_container_host_ip()
+        port = int(container.get_exposed_port(1883))
+        # retry connect with backoff
+        for i in range(6):
+            try:
+                print(
+                    f"Attempt {i + 1} to connect to mosquitto broker at {host}:{port}..."
+                )
+                async with Client(hostname=host, port=port, timeout=5):
+                    print(f"Connected to mosquitto broker at {host}:{port}")
+                break
+            except Exception as e:
+                print(f"Failed to connect to mosquitto broker at {host}:{port}: {e}")
+                if i == 5:
+                    raise RuntimeError("Failed to connect to mosquitto broker") from e
+                await sleep(2**i)
+        yield host, port
+
+
+@pytest.fixture
+async def mqtt_client(mosquitto_broker):
+    host, port = mosquitto_broker
+    async with Client(hostname=host, port=port, timeout=20) as client:
+        yield client
