@@ -1,0 +1,22 @@
+services:
+  api:
+    build:
+      context: .
+    image: cardio-trace-iot-sim:dev
+    env_file:
+      - .env
+    environment:
+      MQTT_HOST: broker
+      MQTT_PORT: 1883
+    depends_on:
+      - broker
+    ports:
+      - "8000:8000"
+    volumes:
+      - ./data:/app/data
+      - ./tests:/app/tests:ro
+
+  broker:
+    image: eclipse-mosquitto:latest
+    ports:
+      - "1883:1883"
