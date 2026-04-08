@@ -2,10 +2,10 @@ from typing import List, Dict, Tuple
 from datetime import timedelta, datetime
 from itertools import cycle, islice
 from asyncio import sleep
-import pyhrv.time_domain as td
 
 from .formats import PayloadResolver
-from .exceptions import DeviceInitializationError, HRVCalculationError
+from .exceptions import DeviceInitializationError
+from .metrics import hr_mean_bpm, sdnn_ms, rmssd_ms
 
 
 class HRMonitorDevice:
@@ -74,22 +74,19 @@ class HRMonitorDevice:
             return None
 
     def calculate_hrv(self, intervals: List[int]) -> Tuple[float, float]:
-        sdnn = round(td.sdnn(nni=intervals)["sdnn"], 2)
-        rmssd = round(td.rmssd(nni=intervals)["rmssd"], 2)
+        sdnn = round(sdnn_ms(intervals), 2)
+        rmssd = round(rmssd_ms(intervals), 2)
         return sdnn, rmssd
 
     def calculate_hrv_stats(self, intervals: List[int]) -> Tuple[float, float]:
         hr, sdnn, rmssd = None, None, None
-        try:
-            hr = self.calculate_hr(intervals)
-            if self.hrv_window_ready:
-                sdnn, rmssd = self.calculate_hrv(self.hrv_window())
-            return hr, sdnn, rmssd
-        except Exception as e:
-            raise HRVCalculationError(f"Failed to calculate HRV stats: {e}") from e
+        hr = self.calculate_hr(intervals)
+        if self.hrv_window_ready:
+            sdnn, rmssd = self.calculate_hrv(self.hrv_window())
+        return hr, sdnn, rmssd
 
     def calculate_hr(self, intervals: List[int]) -> int:
-        hr = int(td.hr_parameters(nni=intervals)["hr_mean"])
+        hr = int(hr_mean_bpm(intervals))
         return hr
 
     @property

@@ -292,8 +292,8 @@ async def test_hrv_calculation_error(mocker):
     rr_example = [1, 2, 3, 4, 5, 6, 7, 8, 9, 10]
 
     # Correct way to patch inside @src/hr_monitor/device.py
-    mock_td = mocker.patch("hr_monitor.device.td")
-    mock_td.hr_parameters.side_effect = ValueError("Test error")
+    mock_hr_mean_bpm = mocker.patch("hr_monitor.device.hr_mean_bpm")
+    mock_hr_mean_bpm.side_effect = HRVCalculationError("Test error")
 
     simple_payload = "<sdnn> <rmssd>"
     device = HRMonitorDevice(
