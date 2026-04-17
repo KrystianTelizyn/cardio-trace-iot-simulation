@@ -37,7 +37,7 @@ make import-physionet
 2. Use the RR repository:
 
 ```python
-from hr_monitor import RecordRepository
+from rr_repository import RecordRepository
 
 repo = RecordRepository()
 records = repo.list_records()
@@ -47,9 +47,10 @@ rr = repo.get_record_data("physionet-rr-000")
 3. Run a simple simulator (sketch):
 
 ```python
-from hr_monitor import HRDeviceConfig, HRSimulatorConfig, HRMonitorMqttSimulator, RecordRepository
+from hr_monitor import HRDeviceConfig, HRSimulatorConfig, HRMonitorMqttSimulator
 from hr_monitor.adapters import AioMqttClientAdapter
-from hr_moniotr.formats import PayloadTemplates
+from hr_monitor.formats import PayloadTemplates
+from rr_repository import RecordRepository
 import asyncio
 
 repo = RecordRepository()
@@ -57,12 +58,12 @@ devices = [
     HRDeviceConfig(
         device_id="dev-1",
         record_tag="physionet-rr-000",
-        payload_format=PayloadTemplates.Apple
+        payload_format=PayloadTemplates.Apple,
         topic="/bus/dev-1"
     )
 ]
 cfg = HRSimulatorConfig(devices=devices)
-mqtt_client = AioMqttClientAdapter(host="localhost", port=1883)
+mqtt_client = AioMqttClientAdapter(hostname="localhost", port=1883)
 sim = HRMonitorMqttSimulator(repo, cfg, mqtt_client)
 asyncio.run(sim.start())
 ```
@@ -76,9 +77,10 @@ You can run a small FastAPI service that wraps `HRMonitorMqttSimulator` and expo
 1. Set required environment variables:
 
 ```bash
-export SIM_CONFIG_PATH=tests/example_config.json  # or your own config JSON
+export SIM_CONFIG_PATH=tests/rr_config.json  # or your own config JSON
 export MQTT_HOST=localhost
 export MQTT_PORT=1883
+export RR_DB_PATH=data/rr_records.db
 ```
 
 2. Run the API with uvicorn (single worker to keep one simulator instance per process):
@@ -91,6 +93,12 @@ Alternatively, run the module directly:
 
 ```bash
 python -m rest
+```
+
+For local development, you can also run the stack with Docker Compose:
+
+```bash
+make compose-up
 ```
 
 3. Example requests:
