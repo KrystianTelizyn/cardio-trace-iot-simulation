@@ -50,8 +50,6 @@ class RecordRepository:
             raise RecordDuplicateError(tag)
         if len(rr_intervals) == 0:
             raise RecordValidationError("RR intervals cannot be empty")
-        if len(rr_intervals) > 65535:
-            raise RecordValidationError("RR intervals cannot be more than 65535")
         with self._session_factory() as session:
             blob = pack_rr_intervals(rr_intervals)
             record = Record(
