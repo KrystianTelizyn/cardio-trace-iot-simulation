@@ -114,10 +114,11 @@ class HRMonitorDevice:
 
         return self.build_frame(token_replacements)
 
-    def build_frame(self, token_replacements: Dict[str, str]) -> str:
+    def build_frame(self, token_replacements: Dict[str, object]) -> str:
         json_frame = self.payload_format
 
         for token, replacement in token_replacements.items():
-            json_frame = json_frame.replace(token, str(replacement))
+            rendered_replacement = "null" if replacement is None else str(replacement)
+            json_frame = json_frame.replace(token, rendered_replacement)
 
         return json_frame

@@ -54,7 +54,7 @@ async def test_hrv_none_when_hrv_window_not_ready():
         hrv_frame=9,
     )
     result_frame = await device.obtain_next_measurement_frame()
-    assert result_frame == "None None"
+    assert result_frame == "null null"
 
 
 @pytest.mark.asyncio
