@@ -1,4 +1,4 @@
-.PHONY: help login download-physionet import-physionet compose-up compose-down compose-logs compose-ps build-image tag-image push-image
+.PHONY: help test login download-physionet import-physionet compose-up compose-down compose-logs compose-ps build-image tag-image push-image
 
 IMAGE_NAME := cardio-trace-iot-simulation
 IMAGE_TAG := $(or $(IMAGE_TAG),dev)
@@ -65,3 +65,7 @@ compose-logs: ## Tail development stack logs
 # Show development stack container status
 compose-ps: ## Show development stack containers
 	docker compose -f $(COMPOSE_FILE) ps
+
+# Run the test suite (extra pytest args via ARGS, e.g. make test ARGS="-k device")
+test: ## Run tests with pytest (requires Docker for MQTT integration tests)
+	uv run pytest $(ARGS)
