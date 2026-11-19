@@ -1,13 +1,13 @@
 from contextlib import asynccontextmanager
 import os
 
-from fastapi import FastAPI, Request
-from fastapi.responses import JSONResponse
+from fastapi import FastAPI
 from hr_monitor import HRSimulatorConfig, HRMonitorMqttSimulator
 from hr_monitor.adapters import AioMqttClientAdapter
-from hr_monitor.exceptions import HRMonitorException, SimulatorError
+from hr_monitor.exceptions import HRMonitorException
 from rr_repository import RecordRepository
 from rr_repository.exceptions import RRRepositoryException
+from .error_handlers import register_exception_handlers
 from .routes import router
 from dotenv import load_dotenv
 from .exceptions import InvalidConfigurationError
@@ -48,25 +48,4 @@ app = FastAPI(title="Cardio Trace Simulator API", lifespan=lifespan)
 app.include_router(router)
 
 
-@app.exception_handler(SimulatorError)
-async def simulator_error_handler(
-    request: Request, exc: SimulatorError
-) -> JSONResponse:
-    return JSONResponse(
-        status_code=409,
-        content={
-            "detail": str(exc),
-            "last_error": repr(exc.last_error),
-        },
-    )
-
-
-@app.exception_handler(HRMonitorException)
-async def general_simulator_error_handler(
-    request: Request, exc: HRMonitorException
-) -> JSONResponse:
-    # Convert uncaught Exceptions into a stable API response shape.
-    return JSONResponse(
-        status_code=500,
-        content={"detail": exc.message},
-    )
+register_exception_handlers(app)

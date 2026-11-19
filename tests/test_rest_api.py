@@ -132,3 +132,19 @@ async def test_returns_409_when_internal_error(api_client, mocker):
     assert response.status_code == 409
     assert "ValueError('Test error')" in response.json()["detail"]
     assert response.json()["last_error"] == "ValueError('Test error')"
+
+
+@pytest.mark.timeout(60)
+def test_returns_503_when_broker_goes_down(api_client, mosquitto_container):
+    start_resp = api_client.post("/simulation/start")
+    assert start_resp.status_code == 200
+    assert start_resp.json()["state"] == "RUNNING"
+
+    stop_resp = api_client.post("/simulation/stop")
+    assert stop_resp.status_code == 200
+
+    mosquitto_container.get_wrapped_container().stop()
+
+    response = api_client.post("/simulation/start")
+    assert response.status_code == 503
+    assert response.json() == {"detail": "MQTT broker unavailable"}

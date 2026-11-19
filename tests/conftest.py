@@ -102,8 +102,11 @@ async def simulator_mqtt_mock(
         await sim.stop()
 
 
-@pytest.fixture(scope="session")
-async def mosquitto_broker():
+@pytest.fixture
+async def mosquitto_container():
+    # Function scope: every test gets its own broker, so a test may stop it.
+    # To stop it mid-test use container.get_wrapped_container().stop() so the
+    # context manager can still remove the container on teardown.
     with DockerContainer("eclipse-mosquitto:latest").with_exposed_ports(
         1883
     ) as container:
@@ -123,7 +126,15 @@ async def mosquitto_broker():
                 if i == 5:
                     raise RuntimeError("Failed to connect to mosquitto broker") from e
                 await sleep(2**i)
-        yield host, port
+        yield container
+
+
+@pytest.fixture
+async def mosquitto_broker(mosquitto_container):
+    return (
+        mosquitto_container.get_container_host_ip(),
+        int(mosquitto_container.get_exposed_port(1883)),
+    )
 
 
 @pytest.fixture
