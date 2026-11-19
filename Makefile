@@ -1,4 +1,4 @@
-.PHONY: help test login download-physionet import-physionet compose-up compose-down compose-logs compose-ps build-image tag-image push-image
+.PHONY: help test mqtt-sub login download-physionet import-physionet compose-up compose-down compose-logs compose-ps build-image tag-image push-image
 
 IMAGE_NAME := cardio-trace-iot-simulation
 IMAGE_TAG := $(or $(IMAGE_TAG),dev)
@@ -7,6 +7,9 @@ ENV_FILE ?= .env
 COMPOSE_FILE ?= docker-compose.dev.yml
 AWS_ACCOUNT_ID := 719030484884
 AWS_REGION := eu-north-1
+MQTT_HOST ?= localhost
+MQTT_PORT ?= 1883
+TOPIC ?= \#
 
 # PhysioNet dataset URL and target directory
 PHYSIONET_ZIP_URL := https://physionet.org/content/rr-interval-healthy-subjects/get-zip/1.0.0/
@@ -69,3 +72,7 @@ compose-ps: ## Show development stack containers
 # Run the test suite (extra pytest args via ARGS, e.g. make test ARGS="-k device")
 test: ## Run tests with pytest (requires Docker for MQTT integration tests)
 	uv run pytest $(ARGS)
+
+# Subscribe to MQTT topic(s) on the dev broker (default: all topics)
+mqtt-sub: ## Subscribe to MQTT topic, e.g. make mqtt-sub TOPIC=apple/watch (default #)
+	mosquitto_sub -h $(MQTT_HOST) -p $(MQTT_PORT) -t '$(TOPIC)' -v
